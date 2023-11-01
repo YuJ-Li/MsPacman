@@ -12,7 +12,7 @@ ale.setInt("random_seed", 123)
 # Check if we can display the screen
 if SDL_SUPPORT:
     ale.setBool("sound", False)
-    ale.setBool("display_screen", True)
+    ale.setBool("display_screen", False)
 
 ale.loadROM("./MSPACMAN.BIN")
 
@@ -52,6 +52,7 @@ yellow_ghost = [6,9] # 38
 red_ghost = [4,9] # 70
 pink_ghost = [6,9] # 88
 blue_ghost = [6,9] # 184
+scared = False
 
 '''
 74: pink
@@ -97,20 +98,37 @@ def read_state(screen):
 
             # update the position of pacman and ghost    
             elif 42 in p_occ:
+                scared = False
                 if row != pacman_position[0] or col != pacman_position[1]: # if the position of pacman has changed
                     pacman_position = [row,col] # update his position
             elif 38 in p_occ:
+                scared = False
                 if row != yellow_ghost[0] or col != yellow_ghost[1]: # if the position of yellow ghost has changed
                     yellow_ghost = [row,col]
             elif 70 in p_occ:
+                scared = False
                 if row != red_ghost[0] or col != red_ghost[1]: # if the position of red ghost has changed
                     red_ghost = [row,col]
             elif 88 in p_occ:
+                scared = False
                 if row != pink_ghost[0] or col != pink_ghost[1]: # if the position of pink ghost has changed
                     pink_ghost = [row,col]
             elif 184 in p_occ:
+                scared = False
                 if row != blue_ghost[0] or col != blue_ghost[1]: # if the position of blue ghost has changed
                     blue_ghost = [row,col]
+            elif 150 in p_occ:
+                # scared ghost
+                scared = True
+                if(abs(row-pink_ghost[0])+abs(col-pink_ghost[1]) < 2):
+                    pink_ghost = [row,col]
+                elif(abs(row-yellow_ghost[0])+abs(col-yellow_ghost[1]) < 2):
+                    yellow_ghost = [row,col]
+                elif(abs(row-red_ghost[0])+abs(col-red_ghost[1]) < 2):
+                    red_ghost = [row,col]
+                elif(abs(row-blue_ghost[0])+abs(col-blue_ghost[1]) < 2):
+                    blue_ghost = [row,col]             
+                continue
             state[row][col] = block_code
     state[pacman_position[0]][pacman_position[1]] = 3
     state[yellow_ghost[0]][yellow_ghost[1]] = 4
@@ -131,8 +149,45 @@ def print_state_board(board):
 
 '''Q-Learning'''
 legal_actions = [2,3,4,5] #up, right, left, down
-
+impacts = [0,0,0,0] # impact of dist to food; scared ghost(can be eaten); active ghost; number of food remaining
 def valueQ(state, action):
+    global pacman_position
+    tmp_position = pacman_position # in roder to reset the position of the pacman
+    Q = 0
+    next_state = copy.deepcopy(state)
+    next_state[tmp_position[0]][tmp_position[1]] = 0
+
+    try:
+        if (action == 2 and next_state[tmp_position[0]-1][tmp_position[1]] != 6): # move up and not against a wall
+            next_state[tmp_position[0]-1][tmp_position[1]] = 3
+            tmp_position = [tmp_position[0]-1, tmp_position[1]]
+        elif (action == 3 and next_state[tmp_position[0]][tmp_position[1]+1] != 6): # move right and not against a wall
+            next_state[tmp_position[0]][tmp_position[1]+1] = 3
+            tmp_position = [tmp_position[0], tmp_position[1]+1]
+        elif (action == 4 and next_state[tmp_position[0]][tmp_position[1]-1] != 6): # move left and not against a wall
+            next_state[tmp_position[0]][tmp_position[1]-1] = 3
+            tmp_position = [tmp_position[0], tmp_position[1]-1]
+        elif (action == 5 and next_state[tmp_position[0]+1][tmp_position[1]] != 6): # move down and not against a wall
+            next_state[tmp_position[0]+1][tmp_position[1]] = 3
+            tmp_position = [tmp_position[0]+1, tmp_position[1]]
+        else:
+            next_state[tmp_position[0]][tmp_position[1]] = 3
+
+    except IndexError:
+        # left and right tunnel
+        if (tmp_position[1] == 0 and action == 4): # move left using tunnel
+            next_state[tmp_position[0]][len(next_state[0])-1] = 3
+            tmp_position = [tmp_position[0], len(next_state[0])-1]
+        elif (tmp_position[1] == len(next_state[0])-1 and action ==3): # move right using tunnel
+            next_state[tmp_position[0]][0] = 3
+            tmp_position = [tmp_position[0], 0]
+        # there is no tunnel on top and on bottom
+        else:
+            next_state[tmp_position[0]][tmp_position[1]] = 3
+    
+    dist_food, num_food = findFood(next_state, tmp_position)
+    scared_dist, active_dist = findGhost(tmp_position)
+
     return 0
 
 
@@ -152,7 +207,7 @@ def maxQ(state):
                 # if the next move is toward a wall, choose another one, to avoid stuck
                 if(
                     (act == 2 and state[pacman_position[0]-1][pacman_position[1]] == 6) or  # up
-                    (act == 3 and state[pacman_position[0]-1][pacman_position[1]+1] == 6) or  # right
+                    (act == 3 and state[pacman_position[0]][pacman_position[1]+1] == 6) or  # right
                     (act == 4 and state[pacman_position[0]][pacman_position[1]-1] == 6) or  # left
                     (act == 5 and state[pacman_position[0]+1][pacman_position[1]] == 6)     # down
                 ):
@@ -164,6 +219,46 @@ def maxQ(state):
                 continue
     return action, Qmax
 
+def findFood(state, myposition):
+    dist = 0
+    num_food=0
+    for i in range(0, len(state)):
+        for j in range(0, len(state[0])):
+            if state[i][j] == 1:
+                num_food += 1
+                dx = abs(myposition[0]-i)
+                dy = abs(myposition[1]-j)
+                # using tunnel for the distance
+                if dy > len(state) // 2:
+                    dy = abs(myposition[1]) + abs(len(state)-1-j) 
+                dist += dx
+                dist += dy
+    return dist, num_food
+
+def findGhost(myposition):
+    global yellow_ghost
+    global red_ghost
+    global pink_ghost
+    global blue_ghost
+    global scared
+
+    scared_dist = float('inf')
+    active_dist = float('inf')
+
+    dx = abs(myposition[0]-yellow_ghost[0])
+    dy = abs(myposition[1]-yellow_ghost[1])
+
+
+
+
+
+    return 0
+
+
+
+
+
+
 
 
 # Get the list of legal actions
@@ -172,12 +267,12 @@ def maxQ(state):
 
 # Q-learning parameters
 alpha = 0.01  # Learning rate
-gamma = 0.99  # Discount factor
+gamma = 0.90  # Discount factor
 epsilon = 0.5  # Exploration-exploitation trade-off 
 
 
 # Initialize Q-table
-state_space_size = ale.getScreenDims()
+state_space_size = (n_cols, n_rows)
 action_space_size = len(legal_actions)
 q_table = np.zeros((state_space_size[0], state_space_size[1], action_space_size))
 
@@ -185,12 +280,9 @@ q_table = np.zeros((state_space_size[0], state_space_size[1], action_space_size)
 for episode in range(1000):
     total_reward = 0
     ale.reset_game()
-    state = ale.getScreen()
-    state = np.asanyarray(state)
-    np.set_printoptions(threshold=np.inf)
+    state = read_state(ale.getScreen())
 
     while not ale.game_over():
-        print_state_board(read_state(ale.getScreen()))
         # Convert state to indices for indexing the Q-table
         state_indices = state[0], state[1]
 
@@ -199,11 +291,10 @@ for episode in range(1000):
             action = legal_actions[randrange(len(legal_actions))]
         else:
             action = np.argmax(q_table[state_indices])
-        action = Action.DOWNRIGHT
         # Apply the chosen action
         reward = ale.act(action)
         # Get the next state
-        next_state = ale.getScreen()
+        next_state = read_state(ale.getScreen())
 
         # Convert next state to indices for indexing the Q-table
         next_state_indices = next_state[0], next_state[1]
@@ -222,7 +313,7 @@ for episode in range(1000):
 for episode in range(10):
     total_reward = 0
     ale.reset_game()
-    state = ale.getScreen()
+    state = read_state(ale.getScreen())
 
     while not ale.game_over():
         # Convert state to indices for indexing the Q-table
@@ -230,6 +321,6 @@ for episode in range(10):
         action = np.argmax(q_table[state_indices])
         reward = ale.act(action)
         total_reward += reward
-        state = ale.getScreen()
+        state = read_state(ale.getScreen())
 
     print("Test episode %d ended with score: %d" % (episode, total_reward))
