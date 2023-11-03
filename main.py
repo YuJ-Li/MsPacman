@@ -1,5 +1,6 @@
 import copy
 import csv
+import math
 from random import randrange
 import random
 from ale_py import ALEInterface, SDL_SUPPORT, Action
@@ -65,6 +66,7 @@ def read_state(screen):
     global red_ghost
     global pink_ghost
     global blue_ghost
+    global scared
 
     state = copy.deepcopy(game_board)
     for row in range(n_rows): # 14 rows of blocks
@@ -87,7 +89,6 @@ def read_state(screen):
 
             # update the position of pacman and ghost    
             elif 42 in p_occ:
-                scared = False
                 if row != pacman_position[0] or col != pacman_position[1]: # if the position of pacman has changed
                     pacman_position = [row,col] # update his position
             elif 38 in p_occ:
@@ -181,18 +182,17 @@ def Q_learning(state, reward):
         try:
             impacts[0] = impacts[0] + alpha / food_dist * (reward + gamma*Qmax - Q)
         except ZeroDivisionError:
-            impacts[0] = impacts[0] + 2 * alpha*(reward + gamma*Qmax - Q)
+            impacts[0] = impacts[0] + alpha*(reward + gamma*Qmax - Q)
         try:
             impacts[1] = impacts[1] + alpha / scared_dist * (reward + gamma*Qmax - Q)
         except ZeroDivisionError:
-            impacts[1] = impacts[1] + 2 * alpha*(reward + gamma*Qmax - Q)
-
+            impacts[1] = impacts[1] + alpha*(reward + gamma*Qmax - Q)
         impacts[2] = impacts[2] + alpha * active_dist * (reward + gamma*Qmax - Q)
 
         try:
             impacts[3] = impacts[3] + alpha / num_food * (reward + gamma*Qmax - Q)
         except ZeroDivisionError:
-            impacts[3] = impacts[3] + 2 * alpha * (reward + gamma*Qmax - Q)
+            impacts[3] = impacts[3] + alpha * (reward + gamma*Qmax - Q)
 
     prev_state = state
     prev_action = explore(state)
@@ -242,14 +242,14 @@ def valueQ(state, action):
         # larger the dist, smaller the Q
         Q += impacts[0] / dist_food
     except ZeroDivisionError:
-        Q += 2 * impacts[0]
+        Q += impacts[0]
     try:
         # larger the sacred dist, smaller the Q
         Q += impacts[1] / scared_dist
     except ZeroDivisionError:
-        Q += 2 * impacts[1]
+        Q += impacts[1]
     if active_dist:
-        # larger the active dist, larger the Q
+        # larger the active dist, larger the Q 
         Q += impacts[2] * active_dist
     else: 
         Q -= 100
@@ -257,7 +257,7 @@ def valueQ(state, action):
         # smaller the fodd, bigger the Q
         Q += impacts[3] / num_food
     except ZeroDivisionError:
-        Q += 2 * impacts[3]
+        Q += impacts[3]
     return Q
 
 
@@ -267,9 +267,8 @@ def maxQ(state):
     '''
     global legal_actions
     global pacman_position
-    
     Qmax = float('-inf')
-    action = -1
+    action = 0
     for act in legal_actions:
         Q = valueQ(state, act)
         if (Q > Qmax):
@@ -329,6 +328,7 @@ def findGhost(myposition):
 
             # find the closest scared dist
             scared_dist = min(delta, scared_dist)
+            active_dist = 0
         else:
             # find the closest active dist
             active_dist = min(delta, active_dist)
@@ -347,7 +347,7 @@ def explore(state):
         return actions[random.randint(0,len(actions)-1)]
     # Select best move
     else:
-        pi, Qmax = maxQ(state)
+        pi, _ = maxQ(state)
         return pi
 
 
