@@ -1,20 +1,9 @@
 import copy
+import csv
 from random import randrange
+import random
 from ale_py import ALEInterface, SDL_SUPPORT, Action
 import numpy as np
-
-''' Set up'''
-ale = ALEInterface()
-
-# Get & Set the desired settings
-ale.setInt("random_seed", 123)
-
-# Check if we can display the screen
-if SDL_SUPPORT:
-    ale.setBool("sound", False)
-    ale.setBool("display_screen", False)
-
-ale.loadROM("./MSPACMAN.BIN")
 
 ###########################################################
 
@@ -137,19 +126,80 @@ def read_state(screen):
     state[blue_ghost[0]][blue_ghost[1]] = 7
     return state
 
-''' Helper function for testing '''
-def print_state_board(board):
-    for i in range(len(board)):
-        print(board[i])
-    print('##################################')
+''' Helper function for reading, storing and testing '''
+# read trained weights
+def read_weights(file = './weights.csv'):
+    global impacts
+    impacts = []
+    with open(file, 'r') as csv_file:
+        csv_reader = csv.reader(csv_file)
+        for row in csv_reader:
+            for col in row:
+                impacts.append(float(col))
+    if not impacts:
+        impacts = [0,0,0,0]
 
-
-
+# store trained weights
+def store_weights(file = './weights.csv'):
+    global impacts
+    with open(file, 'w', newline = '') as csv_file:
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerow(impacts)
 ###########################################################
 
 '''Q-Learning'''
+# Q-learning parameters
+alpha = 0.1  # Learning rate
+gamma = 0.9  # Discount factor
+epsilon = 0  # Exploration-exploitation trade-off 
+
+
+# Get the list of legal actions
+# 2: up; 3:right; 4:left; 5:down
 legal_actions = [2,3,4,5] #up, right, left, down
-impacts = [0,0,0,0] # impact of dist to food; scared ghost(can be eaten); active ghost; number of food remaining
+
+prev_state = None
+prev_action = None
+prev_reward = None
+def Q_learning(state, reward):
+    global alpha
+    global gamma
+    global epsilon
+    global prev_state
+    global prev_action
+    global prev_reward
+    global pacman_position
+
+    if ale.game_over():
+        reward -= 100
+    if prev_state is not None:
+        Q = valueQ(prev_state, prev_action)
+        _,Qmax = maxQ(state)
+        food_dist, num_food = findFood(state, pacman_position)
+        scared_dist, active_dist = findGhost(pacman_position)
+        # modify alpha accordingly
+        try:
+            impacts[0] = impacts[0] + alpha / food_dist * (reward + gamma*Qmax - Q)
+        except ZeroDivisionError:
+            impacts[0] = impacts[0] + 2 * alpha*(reward + gamma*Qmax - Q)
+        try:
+            impacts[1] = impacts[1] + alpha / scared_dist * (reward + gamma*Qmax - Q)
+        except ZeroDivisionError:
+            impacts[1] = impacts[1] + 2 * alpha*(reward + gamma*Qmax - Q)
+
+        impacts[2] = impacts[2] + alpha * active_dist * (reward + gamma*Qmax - Q)
+
+        try:
+            impacts[3] = impacts[3] + alpha / num_food * (reward + gamma*Qmax - Q)
+        except ZeroDivisionError:
+            impacts[3] = impacts[3] + 2 * alpha * (reward + gamma*Qmax - Q)
+
+    prev_state = state
+    prev_action = explore(state)
+    prev_reward = reward
+    return prev_action
+
+
 def valueQ(state, action):
     global pacman_position
     tmp_position = pacman_position # in roder to reset the position of the pacman
@@ -158,16 +208,16 @@ def valueQ(state, action):
     next_state[tmp_position[0]][tmp_position[1]] = 0
 
     try:
-        if (action == 2 and next_state[tmp_position[0]-1][tmp_position[1]] != 6): # move up and not against a wall
+        if (action == 2 and next_state[tmp_position[0]-1][tmp_position[1]] != 9): # move up and not against a wall
             next_state[tmp_position[0]-1][tmp_position[1]] = 3
             tmp_position = [tmp_position[0]-1, tmp_position[1]]
-        elif (action == 3 and next_state[tmp_position[0]][tmp_position[1]+1] != 6): # move right and not against a wall
+        elif (action == 3 and next_state[tmp_position[0]][tmp_position[1]+1] != 9): # move right and not against a wall
             next_state[tmp_position[0]][tmp_position[1]+1] = 3
             tmp_position = [tmp_position[0], tmp_position[1]+1]
-        elif (action == 4 and next_state[tmp_position[0]][tmp_position[1]-1] != 6): # move left and not against a wall
+        elif (action == 4 and next_state[tmp_position[0]][tmp_position[1]-1] != 9): # move left and not against a wall
             next_state[tmp_position[0]][tmp_position[1]-1] = 3
             tmp_position = [tmp_position[0], tmp_position[1]-1]
-        elif (action == 5 and next_state[tmp_position[0]+1][tmp_position[1]] != 6): # move down and not against a wall
+        elif (action == 5 and next_state[tmp_position[0]+1][tmp_position[1]] != 9): # move down and not against a wall
             next_state[tmp_position[0]+1][tmp_position[1]] = 3
             tmp_position = [tmp_position[0]+1, tmp_position[1]]
         else:
@@ -188,7 +238,27 @@ def valueQ(state, action):
     dist_food, num_food = findFood(next_state, tmp_position)
     scared_dist, active_dist = findGhost(tmp_position)
 
-    return 0
+    try:
+        # larger the dist, smaller the Q
+        Q += impacts[0] / dist_food
+    except ZeroDivisionError:
+        Q += 2 * impacts[0]
+    try:
+        # larger the sacred dist, smaller the Q
+        Q += impacts[1] / scared_dist
+    except ZeroDivisionError:
+        Q += 2 * impacts[1]
+    if active_dist:
+        # larger the active dist, larger the Q
+        Q += impacts[2] * active_dist
+    else: 
+        Q -= 100
+    try:
+        # smaller the fodd, bigger the Q
+        Q += impacts[3] / num_food
+    except ZeroDivisionError:
+        Q += 2 * impacts[3]
+    return Q
 
 
 def maxQ(state):
@@ -206,10 +276,10 @@ def maxQ(state):
             try:
                 # if the next move is toward a wall, choose another one, to avoid stuck
                 if(
-                    (act == 2 and state[pacman_position[0]-1][pacman_position[1]] == 6) or  # up
-                    (act == 3 and state[pacman_position[0]][pacman_position[1]+1] == 6) or  # right
-                    (act == 4 and state[pacman_position[0]][pacman_position[1]-1] == 6) or  # left
-                    (act == 5 and state[pacman_position[0]+1][pacman_position[1]] == 6)     # down
+                    (act == 2 and state[pacman_position[0]-1][pacman_position[1]] == 9) or  # up
+                    (act == 3 and state[pacman_position[0]][pacman_position[1]+1] == 9) or  # right
+                    (act == 4 and state[pacman_position[0]][pacman_position[1]-1] == 9) or  # left
+                    (act == 5 and state[pacman_position[0]+1][pacman_position[1]] == 9)     # down
                 ):
                     continue
                 else:
@@ -245,82 +315,69 @@ def findGhost(myposition):
     scared_dist = float('inf')
     active_dist = float('inf')
 
-    dx = abs(myposition[0]-yellow_ghost[0])
-    dy = abs(myposition[1]-yellow_ghost[1])
+    ghost_list = []
+    ghost_list.append(yellow_ghost)
+    ghost_list.append(red_ghost)
+    ghost_list.append(pink_ghost)
+    ghost_list.append(blue_ghost)
 
+    for ghost in ghost_list:
+        dx = abs(myposition[0]-ghost[0])
+        dy = abs(myposition[1]-ghost[1])
+        delta = dx+dy
+        if scared:
 
-
-
-
-    return 0
-
-
-
-
-
-
-
-
-# Get the list of legal actions
-# 2: up; 3:right; 4:left; 5:down
-
-
-# Q-learning parameters
-alpha = 0.01  # Learning rate
-gamma = 0.90  # Discount factor
-epsilon = 0.5  # Exploration-exploitation trade-off 
-
-
-# Initialize Q-table
-state_space_size = (n_cols, n_rows)
-action_space_size = len(legal_actions)
-q_table = np.zeros((state_space_size[0], state_space_size[1], action_space_size))
-
-# Play 1000 episodes for training
-for episode in range(1000):
-    total_reward = 0
-    ale.reset_game()
-    state = read_state(ale.getScreen())
-
-    while not ale.game_over():
-        # Convert state to indices for indexing the Q-table
-        state_indices = state[0], state[1]
-
-        # Exploration-exploitation trade-off
-        if np.random.uniform(0, 1) < epsilon:
-            action = legal_actions[randrange(len(legal_actions))]
+            # find the closest scared dist
+            scared_dist = min(delta, scared_dist)
         else:
-            action = np.argmax(q_table[state_indices])
-        # Apply the chosen action
-        reward = ale.act(action)
-        # Get the next state
-        next_state = read_state(ale.getScreen())
+            # find the closest active dist
+            active_dist = min(delta, active_dist)
+    return scared_dist, active_dist
 
-        # Convert next state to indices for indexing the Q-table
-        next_state_indices = next_state[0], next_state[1]
 
-        # Update Q-value based on the Bellman equation
-        q_table[state_indices][action] = q_table[state_indices][action] + alpha * (
-                reward + gamma * np.max(q_table[next_state_indices]) - q_table[state_indices][action]
-        )
+def explore(state):
+    """
+    Epsilon-Greedy Policy
+    """
+    global epsilon
 
-        total_reward += reward
-        state = next_state
+    actions = [2,3,4,5] #up, right, left, down
+    # Randomly Select move
+    if(np.random.uniform(0,1) < epsilon):
+        return actions[random.randint(0,len(actions)-1)]
+    # Select best move
+    else:
+        pi, Qmax = maxQ(state)
+        return pi
 
-    print("Episode %d ended with score: %d" % (episode, total_reward))
 
-# testing
-for episode in range(10):
+
+''' Set up'''
+ale = ALEInterface()
+
+# Get & Set the desired settings
+# ale.setInt("random_seed", 0)
+ale.setInt("frame_skip", 5)
+
+# Check if we can display the screen
+if SDL_SUPPORT:
+    ale.setBool("sound", False)
+    ale.setBool("display_screen", True)
+
+ale.loadROM("./MSPACMAN.BIN")
+
+# Play 100 episodes for training
+for episode in range(100):
+    read_weights()
+    print(impacts)
+    reward = 0
     total_reward = 0
-    ale.reset_game()
-    state = read_state(ale.getScreen())
-
     while not ale.game_over():
-        # Convert state to indices for indexing the Q-table
-        state_indices = state[0], state[1]
-        action = np.argmax(q_table[state_indices])
-        reward = ale.act(action)
-        total_reward += reward
         state = read_state(ale.getScreen())
-
-    print("Test episode %d ended with score: %d" % (episode, total_reward))
+        a = Q_learning(state, reward)
+        a = 0 if a is None else a
+        reward = ale.act(a)
+        total_reward += reward
+    print("Episode %d ended with score: %d" % (episode, total_reward))
+    ale.reset_game()
+    store_weights()
