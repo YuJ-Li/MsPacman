@@ -42,6 +42,7 @@ yellow_ghost = [0,0] # 38
 red_ghost = [0,0] # 70
 pink_ghost = [0,0] # 88
 blue_ghost = [0,0] # 184
+pacman_position_list = []
 scared = False
 
 '''
@@ -67,7 +68,9 @@ def read_state(screen):
     global pink_ghost
     global blue_ghost
     global scared
+    global pacman_position_list
 
+    pacman_position_list=[]
     state = copy.deepcopy(game_board)
     for row in range(n_rows): # 14 rows of blocks
         for col in range(n_cols): # 20 col of blocks
@@ -75,7 +78,7 @@ def read_state(screen):
             # in each block, collect information of diff color pixel
             for i in range(block_size[0]):
                 for j in range(block_size[1]):
-                    pixel = screen[row*block_size[0]+i+2][col*block_size[1]+j] # ???
+                    pixel = screen[row*block_size[0]+i+2][col*block_size[1]+j] # ignore the pixels on the top
                     occurrence = 0 if p_occ.get(pixel) is None else p_occ.get(pixel)
                     p_occ[pixel] = occurrence + 1 # increase occurrence by 1
             block_code = 0 #by default it is a block of road without food
@@ -89,8 +92,8 @@ def read_state(screen):
 
             # update the position of pacman and ghost    
             elif 42 in p_occ:
-                if row != pacman_position[0] or col != pacman_position[1]: # if the position of pacman has changed
-                    pacman_position = [row,col] # update his position
+                pacman_position_list.append([row,col])
+                # if col <= n_cols // 2:
             elif 38 in p_occ:
                 scared = False
                 if row != yellow_ghost[0] or col != yellow_ghost[1]: # if the position of yellow ghost has changed
@@ -120,6 +123,18 @@ def read_state(screen):
                     blue_ghost = [row,col]             
                 continue
             state[row][col] = block_code
+    big_col = 0
+    small_col = 100
+    for positions in pacman_position_list:
+        if positions[1] <= (n_cols-1) // 2: # if col is on the right, squeeze it toward the center
+            big_col = positions[1] if positions[1] > big_col else big_col
+            r = positions[0] if positions[0] != pacman_position[0] else pacman_position[0]
+            pacman_position = [r, big_col]
+        elif positions[1] > (n_cols-1) // 2: # if col is on the left, squeeze it toward the center
+            small_col = positions[1] if positions[1] < small_col else small_col
+            r = positions[0] if positions[0] != pacman_position[0] else pacman_position[0]
+            pacman_position = [r,small_col]
+    
     state[pacman_position[0]][pacman_position[1]] = 3
     state[yellow_ghost[0]][yellow_ghost[1]] = 4
     state[red_ghost[0]][red_ghost[1]] = 5
@@ -159,18 +174,13 @@ legal_actions = [2,3,4,5] #up, right, left, down
 
 prev_state = None
 prev_action = None
-prev_reward = None
 def Q_learning(state, reward):
     global alpha
     global gamma
     global epsilon
     global prev_state
     global prev_action
-    global prev_reward
     global pacman_position
-
-    if ale.game_over():
-        reward -= 100
     if prev_state is not None:
         Q = valueQ(prev_state, prev_action)
         _,Qmax = maxQ(state)
@@ -194,7 +204,6 @@ def Q_learning(state, reward):
 
     prev_state = state
     prev_action = explore(state)
-    prev_reward = reward
     return prev_action
 
 
@@ -278,8 +287,6 @@ def maxQ(state):
                     (act == 4 and state[pacman_position[0]][pacman_position[1]-1] == 9) or  # left
                     (act == 5 and state[pacman_position[0]+1][pacman_position[1]] == 9)     # down
                 ):
-                    print('skip: ', act)
-                    print(state)
                     continue
                     
                 else:
@@ -363,7 +370,7 @@ ale.setInt("frame_skip", 5)
 # Check if we can display the screen
 if SDL_SUPPORT:
     ale.setBool("sound", False)
-    ale.setBool("display_screen", True)
+    ale.setBool("display_screen", False)
 
 ale.loadROM("./MSPACMAN.BIN")
 
@@ -376,7 +383,7 @@ def train(train_episode = 100):
     gamma = 0.9  # Discount factor
     epsilon = 0.1  # Exploration-exploitation trade-off 
     # Play 100 episodes for training
-    max_reward = 0
+
     for episode in range(100):
         read_weights()
         print(impacts)
@@ -388,11 +395,9 @@ def train(train_episode = 100):
             a = 0 if a is None else a
             reward = ale.act(a)
             total_reward += reward
-        
+        store_weights()
         print("Episode %d ended with score: %d" % (episode, total_reward))
-        if total_reward > max_reward:
-            max_reward = total_reward
-            store_weights()
+
         ale.reset_game()
 
 def test():
@@ -416,8 +421,22 @@ def test():
         total_reward += reward
     print("Score: %d" % (total_reward))
     ale.reset_game()
+    return total_reward
 
 
 if __name__ == "__main__":
     # train(100)
-    test()
+    low = 0
+    med = 0
+    high = 0
+    for i in range(100):
+        r = test()
+        if r <= 500:
+            low += 1
+        elif r <= 1000:
+            med += 1
+        else:
+            high += 1
+    print('low: ', low)
+    print('med: ', med)
+    print('high: ', high)
