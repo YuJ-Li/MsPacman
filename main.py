@@ -37,11 +37,11 @@ game_board = [
 n_rows = 14 # 14 rows of blocks
 n_cols = 20 # 20 col of blocks
 block_size = (int(168/n_rows), int(160/n_cols)) # a block in displayscreen , row x col, 12 by 8 remove 2 pixels on the top(a black line and a pink line)
-pacman_position = [8,9] # initially somewhere between [8,9] and [8,10]
-yellow_ghost = [6,9] # 38
-red_ghost = [4,9] # 70
-pink_ghost = [6,9] # 88
-blue_ghost = [6,9] # 184
+pacman_position = [0,0] # initially somewhere between [8,9] and [8,10]
+yellow_ghost = [0,0] # 38
+red_ghost = [0,0] # 70
+pink_ghost = [0,0] # 88
+blue_ghost = [0,0] # 184
 scared = False
 
 '''
@@ -149,11 +149,9 @@ def store_weights(file = './weights.csv'):
 ###########################################################
 
 '''Q-Learning'''
-# Q-learning parameters
-alpha = 0.1  # Learning rate
-gamma = 0.9  # Discount factor
-epsilon = 0  # Exploration-exploitation trade-off 
-
+alpha = None
+gamma = None
+epsilon = None
 
 # Get the list of legal actions
 # 2: up; 3:right; 4:left; 5:down
@@ -280,7 +278,10 @@ def maxQ(state):
                     (act == 4 and state[pacman_position[0]][pacman_position[1]-1] == 9) or  # left
                     (act == 5 and state[pacman_position[0]+1][pacman_position[1]] == 9)     # down
                 ):
+                    print('skip: ', act)
+                    print(state)
                     continue
+                    
                 else:
                     action = act
                     Qmax = Q
@@ -366,8 +367,43 @@ if SDL_SUPPORT:
 
 ale.loadROM("./MSPACMAN.BIN")
 
-# Play 100 episodes for training
-for episode in range(100):
+def train(train_episode = 100):
+    # Q-learning parameters
+    global alpha # Learning rate
+    global gamma  # Discount factor
+    global epsilon  # Exploration-exploitation trade-off 
+    alpha = 0.1  # Learning rate
+    gamma = 0.9  # Discount factor
+    epsilon = 0.1  # Exploration-exploitation trade-off 
+    # Play 100 episodes for training
+    max_reward = 0
+    for episode in range(100):
+        read_weights()
+        print(impacts)
+        reward = 0
+        total_reward = 0
+        while not ale.game_over():
+            state = read_state(ale.getScreen())
+            a = Q_learning(state, reward)
+            a = 0 if a is None else a
+            reward = ale.act(a)
+            total_reward += reward
+        
+        print("Episode %d ended with score: %d" % (episode, total_reward))
+        if total_reward > max_reward:
+            max_reward = total_reward
+            store_weights()
+        ale.reset_game()
+
+def test():
+    global alpha    # Learning rate
+    global gamma    # Discount factor
+    global epsilon  # Exploration-exploitation trade-off 
+        # Q-learning parameters
+    alpha = 0.1  # Learning rate
+    gamma = 0.9  # Discount factor
+    epsilon = 0  # Exploration-exploitation trade-off 
+
     read_weights()
     print(impacts)
     reward = 0
@@ -378,6 +414,10 @@ for episode in range(100):
         a = 0 if a is None else a
         reward = ale.act(a)
         total_reward += reward
-    print("Episode %d ended with score: %d" % (episode, total_reward))
+    print("Score: %d" % (total_reward))
     ale.reset_game()
-    store_weights()
+
+
+if __name__ == "__main__":
+    # train(100)
+    test()
