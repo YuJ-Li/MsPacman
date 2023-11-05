@@ -181,6 +181,10 @@ def Q_learning(state, reward):
     global prev_state
     global prev_action
     global pacman_position
+    global impacts
+
+    normalize_weights()
+
     if prev_state is not None:
         Q = valueQ(prev_state, prev_action)
         _,Qmax = maxQ(state)
@@ -358,7 +362,13 @@ def explore(state):
         pi, _ = maxQ(state)
         return pi
 
+def normalize_weights():
+    global impacts
+    # Calculate the sum of absolute values of weights
+    weight_sum = sum(map(abs, impacts))
 
+    # Normalize each weight by dividing it by the sum
+    impacts = [w / weight_sum if weight_sum != 0 else w for w in impacts]
 
 ''' Set up'''
 ale = ALEInterface()
@@ -383,8 +393,7 @@ def train(train_episode = 100):
     gamma = 0.9  # Discount factor
     epsilon = 0.1  # Exploration-exploitation trade-off 
     # Play 100 episodes for training
-
-    for episode in range(100):
+    for episode in range(train_episode):
         read_weights()
         print(impacts)
         reward = 0
@@ -425,7 +434,10 @@ def test():
 
 
 if __name__ == "__main__":
-    # train(100)
+    # train(1000)
+
+
+
     low = 0
     med = 0
     high = 0
