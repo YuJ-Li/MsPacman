@@ -38,13 +38,12 @@ n_rows = 14 # 14 rows of blocks
 n_cols = 20 # 20 col of blocks
 block_size = (int(168/n_rows), int(160/n_cols)) # a block in displayscreen , row x col, 12 by 8 remove 2 pixels on the top(a black line and a pink line)
 pacman_position = [0,0] # initially somewhere between [8,9] and [8,10]
-yellow_ghost = [0,0] # 38
-red_ghost = [0,0] # 70
-pink_ghost = [0,0] # 88
-blue_ghost = [0,0] # 184
+# The last bit is the scared bit, 1 means the ghost is scared
+yellow_ghost = [0,0,0] # 38
+red_ghost = [0,0,0] # 70
+pink_ghost = [0,0,0] # 88
+blue_ghost = [0,0,0] # 184
 pacman_position_list = []
-scared = False
-
 '''
 74: pink
 144: blue
@@ -67,7 +66,6 @@ def read_state(screen):
     global red_ghost
     global pink_ghost
     global blue_ghost
-    global scared
     global pacman_position_list
 
     pacman_position_list=[]
@@ -95,32 +93,35 @@ def read_state(screen):
                 pacman_position_list.append([row,col])
                 # if col <= n_cols // 2:
             elif 38 in p_occ:
-                scared = False
+                yellow_ghost[2] = 0
                 if row != yellow_ghost[0] or col != yellow_ghost[1]: # if the position of yellow ghost has changed
-                    yellow_ghost = [row,col]
+                    yellow_ghost[:2] = [row,col]
             elif 70 in p_occ:
-                scared = False
+                red_ghost[2] = 0
                 if row != red_ghost[0] or col != red_ghost[1]: # if the position of red ghost has changed
-                    red_ghost = [row,col]
+                    red_ghost[:2] = [row,col]
             elif 88 in p_occ:
-                scared = False
+                pink_ghost[2] = 0
                 if row != pink_ghost[0] or col != pink_ghost[1]: # if the position of pink ghost has changed
-                    pink_ghost = [row,col]
+                    pink_ghost[:2] = [row,col]
             elif 184 in p_occ:
-                scared = False
+                blue_ghost[2] = 0
                 if row != blue_ghost[0] or col != blue_ghost[1]: # if the position of blue ghost has changed
-                    blue_ghost = [row,col]
+                    blue_ghost[:2] = [row,col]
             elif 150 in p_occ:
                 # scared ghost
-                scared = True
+                yellow_ghost[2] = 1
+                red_ghost[2] = 1
+                pink_ghost[2] = 1
+                blue_ghost[2] = 1
                 if(abs(row-pink_ghost[0])+abs(col-pink_ghost[1]) < 2):
-                    pink_ghost = [row,col]
+                    pink_ghost[:2] = [row,col]
                 elif(abs(row-yellow_ghost[0])+abs(col-yellow_ghost[1]) < 2):
-                    yellow_ghost = [row,col]
+                    yellow_ghost[:2] = [row,col]
                 elif(abs(row-red_ghost[0])+abs(col-red_ghost[1]) < 2):
-                    red_ghost = [row,col]
+                    red_ghost[:2] = [row,col]
                 elif(abs(row-blue_ghost[0])+abs(col-blue_ghost[1]) < 2):
-                    blue_ghost = [row,col]             
+                    blue_ghost[:2] = [row,col]             
                 continue
             state[row][col] = block_code
     big_col = 0
@@ -321,7 +322,6 @@ def findGhost(myposition):
     global red_ghost
     global pink_ghost
     global blue_ghost
-    global scared
 
     scared_dist = float('inf')
     active_dist = float('inf')
@@ -336,7 +336,7 @@ def findGhost(myposition):
         dx = abs(myposition[0]-ghost[0])
         dy = abs(myposition[1]-ghost[1])
         delta = dx+dy
-        if scared:
+        if ghost[2]:
 
             # find the closest scared dist
             scared_dist = min(delta, scared_dist)
@@ -384,7 +384,7 @@ if SDL_SUPPORT:
 
 ale.loadROM("./MSPACMAN.BIN")
 
-def train(train_episode = 100):
+def train(train_episode = 5000):
     # Q-learning parameters
     global alpha # Learning rate
     global gamma  # Discount factor
@@ -434,21 +434,30 @@ def test():
 
 
 if __name__ == "__main__":
-    # train(1000)
+    # train(5000)
 
 
 
-    low = 0
-    med = 0
-    high = 0
+    a = 0
+    b = 0
+    c = 0
+    d = 0
+    e = 0
     for i in range(100):
         r = test()
         if r <= 500:
-            low += 1
+            a += 1
         elif r <= 1000:
-            med += 1
+            b += 1
+        elif r <= 2000:
+            c += 1
+        elif r <= 3000:
+            d += 1
         else:
-            high += 1
-    print('low: ', low)
-    print('med: ', med)
-    print('high: ', high)
+            e += 1
+    print('<=500: ', a)
+    print('500-1000: ', b)
+    print('1000-2000: ', c)
+    print('2000-3000: ', d)
+    print('3000+: ', e)
+
