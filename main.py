@@ -5,6 +5,7 @@ from random import randrange
 import random
 from ale_py import ALEInterface, SDL_SUPPORT, Action
 import numpy as np
+import matplotlib.pyplot as plt
 
 ###########################################################
 
@@ -384,16 +385,26 @@ if SDL_SUPPORT:
 
 ale.loadROM("./MSPACMAN.BIN")
 
-def train(train_episode = 5000):
+training_scores = []
+training_iterations = []
+
+
+def train(train_episode = 100):
     # Q-learning parameters
     global alpha # Learning rate
     global gamma  # Discount factor
     global epsilon  # Exploration-exploitation trade-off 
     alpha = 0.1  # Learning rate
     gamma = 0.9  # Discount factor
-    epsilon = 0.1  # Exploration-exploitation trade-off 
+
+    initial_epsilon = 1.0  # Initial exploration rate
+    final_epsilon = 0  # Final exploration rate
+    epsilon_decay_rate = 0.005  # Linear decay rate
     # Play 100 episodes for training
     for episode in range(train_episode):
+        # generally increase epsilon
+        epsilon = max(final_epsilon, initial_epsilon - epsilon_decay_rate * episode)
+        # epsilon = 0.01
         read_weights()
         print(impacts)
         reward = 0
@@ -406,58 +417,57 @@ def train(train_episode = 5000):
             total_reward += reward
         store_weights()
         print("Episode %d ended with score: %d" % (episode, total_reward))
-
+        training_scores.append(total_reward)
+        training_iterations.append(episode)
         ale.reset_game()
+    plt.plot(training_iterations, training_scores, marker='o')
+    plt.title('Q-learning Training Progress')
+    plt.xlabel('Number of Training Episodes')
+    plt.ylabel('Total Training Score')
+    plt.grid(True)
+    plt.show()
 
-def test():
-    global alpha    # Learning rate
-    global gamma    # Discount factor
+
+testing_scores = []
+testing_iterations = []
+
+def test(test_episode = 100):
+    # Q-learning parameters
+    global alpha # Learning rate
+    global gamma  # Discount factor
     global epsilon  # Exploration-exploitation trade-off 
-        # Q-learning parameters
     alpha = 0.1  # Learning rate
     gamma = 0.9  # Discount factor
-    epsilon = 0  # Exploration-exploitation trade-off 
+    epsilon = 0
 
-    read_weights()
-    print(impacts)
-    reward = 0
-    total_reward = 0
-    while not ale.game_over():
-        state = read_state(ale.getScreen())
-        a = Q_learning(state, reward)
-        a = 0 if a is None else a
-        reward = ale.act(a)
-        total_reward += reward
-    print("Score: %d" % (total_reward))
-    ale.reset_game()
-    return total_reward
+    initial_epsilon = 1.0  # Initial exploration rate
+    final_epsilon = 0  # Final exploration rate
+    epsilon_decay_rate = 0.005  # Linear decay rate
+    # Play 100 episodes for training
+    for episode in range(test_episode):
+        # generally increase epsilon
+        read_weights()
+        print(impacts)
+        reward = 0
+        total_reward = 0
+        while not ale.game_over():
+            state = read_state(ale.getScreen())
+            a = Q_learning(state, reward)
+            a = 0 if a is None else a
+            reward = ale.act(a)
+            total_reward += reward
+        print("Episode %d ended with score: %d" % (episode, total_reward))
+        training_scores.append(total_reward)
+        training_iterations.append(episode)
+        ale.reset_game()
+    plt.plot(training_iterations, training_scores, marker='o')
+    plt.title('Q-learning Testing Result')
+    plt.xlabel('Number of Testing Episodes')
+    plt.ylabel('Total Testing Score')
+    plt.grid(True)
+    plt.show()
 
 
 if __name__ == "__main__":
-    # train(5000)
-
-
-
-    a = 0
-    b = 0
-    c = 0
-    d = 0
-    e = 0
-    for i in range(100):
-        r = test()
-        if r <= 500:
-            a += 1
-        elif r <= 1000:
-            b += 1
-        elif r <= 2000:
-            c += 1
-        elif r <= 3000:
-            d += 1
-        else:
-            e += 1
-    print('<=500: ', a)
-    print('500-1000: ', b)
-    print('1000-2000: ', c)
-    print('2000-3000: ', d)
-    print('3000+: ', e)
-
+    # train(250)
+    test(100)
