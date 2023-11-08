@@ -388,6 +388,38 @@ ale.loadROM("./MSPACMAN.BIN")
 training_scores = []
 training_iterations = []
 
+def greedy_train(train_episode = 100):
+    # Q-learning parameters
+    global alpha # Learning rate
+    global gamma  # Discount factor
+    global epsilon  # Exploration-exploitation trade-off 
+    alpha = 0.1  # Learning rate
+    gamma = 0.9  # Discount factor
+    epsilon = 0.2
+    # Play 100 episodes for training
+    for episode in range(train_episode):
+        read_weights()
+        print(impacts)
+        reward = 0
+        total_reward = 0
+        while not ale.game_over():
+            state = read_state(ale.getScreen())
+            a = Q_learning(state, reward)
+            a = 0 if a is None else a
+            reward = ale.act(a)
+            total_reward += reward
+        store_weights()
+        print("Episode %d ended with score: %d" % (episode, total_reward))
+        training_scores.append(total_reward)
+        training_iterations.append(episode)
+        ale.reset_game()
+    plt.plot(training_iterations, training_scores, marker='o')
+    plt.title('Q-learning Training Progress')
+    plt.xlabel('Number of Training Episodes')
+    plt.ylabel('Total Training Score')
+    plt.grid(True)
+    plt.show()
+
 
 def train(train_episode = 100):
     # Q-learning parameters
@@ -469,5 +501,6 @@ def test(test_episode = 100):
 
 
 if __name__ == "__main__":
+    greedy_train(250)
     # train(250)
-    test(100)
+    # test(100)
