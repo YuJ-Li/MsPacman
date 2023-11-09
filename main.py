@@ -1,3 +1,17 @@
+'''
+Game Board dispaly:
+By default, the game Board would be displayed, if you want to disable it to accelerate the training or testing process, go to line 511, set ale.setBool("display_screen", True) to False.
+
+Random seed:
+By default, the game would run on a random seed, if you have a specific test to train or to test, uncomment line 506 and change the number to the seed number that you want to test.
+
+Navigate to the main function:
+1. If you want to see the performance of the trained model, simply run test(number_of_test), a graph will be plotted if the number_of_test >= 10; by default it will test 1 time.
+
+2. If you want to train a new model from scratch, please delete everythin in weights.csv, and base on your need, run greedy_train(number_of_train) or decay_train(number_of_train), by default they will train for 250 episodes; a graph would be plot at the end of training
+
+3. If you want to train based on the existing model, simply run greedy_train(number_of_train) or decay_train(number_of_train), a graph would be plot at the end of training
+'''
 import copy
 import csv
 from random import randrange
@@ -135,7 +149,7 @@ def read_state(screen):
             small_col = positions[1] if positions[1] < small_col else small_col
             r = positions[0] if positions[0] != pacman_position[0] else pacman_position[0]
             pacman_position = [r,small_col]
-    
+    # update pacman and ghost position
     state[pacman_position[0]][pacman_position[1]] = 3
     state[yellow_ghost[0]][yellow_ghost[1]] = 4
     state[red_ghost[0]][red_ghost[1]] = 5
@@ -368,6 +382,8 @@ def normalize_weights():
     # Normalize each weight by dividing it by the sum
     impacts = [w / weight_sum if weight_sum != 0 else w for w in impacts]
 
+######################################################
+'''training and testing'''
 
 training_scores = []
 training_iterations = []
@@ -449,7 +465,7 @@ def decay_train(train_episode = 100):
 testing_scores = []
 testing_iterations = []
 
-def test(test_episode = 100):
+def test(test_episode = 1):
     # Q-learning parameters
     global alpha # Learning rate
     global gamma  # Discount factor
@@ -492,7 +508,7 @@ ale.setInt("frame_skip", 5)
 
 if SDL_SUPPORT:
     ale.setBool("sound", False)
-    ale.setBool("display_screen", False)
+    ale.setBool("display_screen", True)
     
 ale.loadROM("./MSPACMAN.BIN")
     
@@ -501,4 +517,4 @@ ale.loadROM("./MSPACMAN.BIN")
 if __name__ == "__main__":
     # greedy_train(250)
     # decay_train(250)
-    test(100)
+    test(1)
