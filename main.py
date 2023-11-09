@@ -1,6 +1,5 @@
 import copy
 import csv
-import math
 from random import randrange
 import random
 from ale_py import ALEInterface, SDL_SUPPORT, Action
@@ -407,7 +406,7 @@ def greedy_train(train_episode = 100):
     plt.show()
 
 
-def train(train_episode = 100):
+def decay_train(train_episode = 100):
     # Q-learning parameters
     global alpha # Learning rate
     global gamma  # Discount factor
@@ -447,8 +446,8 @@ def train(train_episode = 100):
     plt.show()
 
 
-# testing_scores = []
-# testing_iterations = []
+testing_scores = []
+testing_iterations = []
 
 def test(test_episode = 100):
     # Q-learning parameters
@@ -467,7 +466,7 @@ def test(test_episode = 100):
         total_reward = 0
         while not ale.game_over():
             state = read_state(ale.getScreen())
-            a = Q_learning(state, reward)
+            a = explore(state)
             a = 0 if a is None else a
             reward = ale.act(a)
             total_reward += reward
@@ -475,13 +474,13 @@ def test(test_episode = 100):
         training_scores.append(total_reward)
         training_iterations.append(episode)
         ale.reset_game()
-    # plt.plot(training_iterations, training_scores, marker='o')
-    # plt.title('Q-learning Testing Result')
-    # plt.xlabel('Number of Testing Episodes')
-    # plt.ylabel('Total Testing Score')
-    # plt.grid(True)
-    # plt.show()
-    # Check if we can display the screen
+    if (test_episode>=10):
+        plt.plot(training_iterations, training_scores, marker='o')
+        plt.title('Q-learning Testing Result')
+        plt.xlabel('Number of Testing Episodes')
+        plt.ylabel('Total Testing Score')
+        plt.grid(True)
+        plt.show()
 
 
 ''' Set up'''
@@ -493,14 +492,13 @@ ale.setInt("frame_skip", 5)
 
 if SDL_SUPPORT:
     ale.setBool("sound", False)
-    ale.setBool("display_screen", True)
+    ale.setBool("display_screen", False)
     
 ale.loadROM("./MSPACMAN.BIN")
     
 
 
 if __name__ == "__main__":
-
     # greedy_train(250)
-    # train(250)
-    test(1)
+    # decay_train(250)
+    test(100)
