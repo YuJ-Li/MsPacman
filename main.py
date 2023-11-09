@@ -185,8 +185,6 @@ def Q_learning(state, reward):
     global pacman_position
     global impacts
 
-    normalize_weights()
-
     if prev_state is not None:
         Q = valueQ(prev_state, prev_action)
         _,Qmax = maxQ(state)
@@ -371,19 +369,6 @@ def normalize_weights():
     # Normalize each weight by dividing it by the sum
     impacts = [w / weight_sum if weight_sum != 0 else w for w in impacts]
 
-''' Set up'''
-ale = ALEInterface()
-
-# Get & Set the desired settings
-# ale.setInt("random_seed", 0)
-ale.setInt("frame_skip", 5)
-
-# Check if we can display the screen
-if SDL_SUPPORT:
-    ale.setBool("sound", False)
-    ale.setBool("display_screen", False)
-
-ale.loadROM("./MSPACMAN.BIN")
 
 training_scores = []
 training_iterations = []
@@ -408,6 +393,7 @@ def greedy_train(train_episode = 100):
             a = 0 if a is None else a
             reward = ale.act(a)
             total_reward += reward
+        normalize_weights()
         store_weights()
         print("Episode %d ended with score: %d" % (episode, total_reward))
         training_scores.append(total_reward)
@@ -447,6 +433,7 @@ def train(train_episode = 100):
             a = 0 if a is None else a
             reward = ale.act(a)
             total_reward += reward
+        normalize_weights()
         store_weights()
         print("Episode %d ended with score: %d" % (episode, total_reward))
         training_scores.append(total_reward)
@@ -460,8 +447,8 @@ def train(train_episode = 100):
     plt.show()
 
 
-testing_scores = []
-testing_iterations = []
+# testing_scores = []
+# testing_iterations = []
 
 def test(test_episode = 100):
     # Q-learning parameters
@@ -471,10 +458,6 @@ def test(test_episode = 100):
     alpha = 0.1  # Learning rate
     gamma = 0.9  # Discount factor
     epsilon = 0
-
-    initial_epsilon = 1.0  # Initial exploration rate
-    final_epsilon = 0  # Final exploration rate
-    epsilon_decay_rate = 0.005  # Linear decay rate
     # Play 100 episodes for training
     for episode in range(test_episode):
         # generally increase epsilon
@@ -492,15 +475,32 @@ def test(test_episode = 100):
         training_scores.append(total_reward)
         training_iterations.append(episode)
         ale.reset_game()
-    plt.plot(training_iterations, training_scores, marker='o')
-    plt.title('Q-learning Testing Result')
-    plt.xlabel('Number of Testing Episodes')
-    plt.ylabel('Total Testing Score')
-    plt.grid(True)
-    plt.show()
+    # plt.plot(training_iterations, training_scores, marker='o')
+    # plt.title('Q-learning Testing Result')
+    # plt.xlabel('Number of Testing Episodes')
+    # plt.ylabel('Total Testing Score')
+    # plt.grid(True)
+    # plt.show()
+    # Check if we can display the screen
+
+
+''' Set up'''
+ale = ALEInterface()
+
+# Get & Set the desired settings
+# ale.setInt("random_seed", 0)
+ale.setInt("frame_skip", 5)
+
+if SDL_SUPPORT:
+    ale.setBool("sound", False)
+    ale.setBool("display_screen", True)
+    
+ale.loadROM("./MSPACMAN.BIN")
+    
 
 
 if __name__ == "__main__":
-    greedy_train(250)
+
+    # greedy_train(250)
     # train(250)
-    # test(100)
+    test(1)
