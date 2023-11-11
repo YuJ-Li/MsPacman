@@ -510,7 +510,7 @@ def test(test_episode = 1):
     gamma = 0.9  # Discount factor
     epsilon = 0
 
-    a = 0
+    a1 = 0
     b = 0
     c = 0
     d = 0
@@ -539,13 +539,13 @@ def test(test_episode = 1):
             c +=1
         elif total_reward >= 500:
             b +=1
-        else:
-            a +=1
+        elif total_reward < 500 and total_reward >= 0:
+            a1 +=1
 
         training_scores.append(total_reward)
         training_iterations.append(episode)
         ale.reset_game()
-    print('<500: ', a)
+    print('<500: ', a1)
     print('500-1000: ', b)
     print('1000-2000: ', c)
     print('2000-3000: ', d)
@@ -569,4 +569,4 @@ ale.loadROM("./MSPACMAN.BIN")
 if __name__ == "__main__":
     # greedy_train(1000)
     # decay_train(250)
-    test(100)
+    test(1)
