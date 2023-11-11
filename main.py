@@ -1,9 +1,9 @@
 '''
 Game Board dispaly:
-By default, the game Board would be displayed, if you want to disable it to accelerate the training or testing process, go to line 511, set ale.setBool("display_screen", True) to False.
+By default, the game Board would not be displayed, if you want to enable it to accelerate the training or testing process, go to line 564, set ale.setBool("display_screen", False) to True.
 
 Random seed:
-By default, the game would run on a random seed, if you have a specific test to train or to test, uncomment line 506 and change the number to the seed number that you want to test.
+By default, the game would run on a random seed, if you have a specific test to train or to test, uncomment line 559 and change the number to the seed number that you want to test.
 
 Navigate to the main function:
 1. If you want to see the performance of the trained model, simply run test(number_of_test), a graph will be plotted if the number_of_test >= 10; by default it will test 1 time.
@@ -168,7 +168,7 @@ def read_weights(file = './weights.csv'):
             for col in row:
                 impacts.append(float(col))
     if not impacts:
-        impacts = [0,0,0,0]
+        impacts = [0,0,0,0,0,0]
 
 # store trained weights
 def store_weights(file = './weights.csv'):
@@ -203,6 +203,7 @@ def Q_learning(state, reward):
         _,Qmax = maxQ(state)
         food_dist, num_food = findFood(state, pacman_position)
         scared_dist, active_dist = findGhost(pacman_position)
+        dist_power, num_power = find_power(state, pacman_position)
         # modify alpha accordingly
         try:
             impacts[0] = impacts[0] + alpha / food_dist * (reward + gamma*Qmax - Q)
@@ -218,6 +219,16 @@ def Q_learning(state, reward):
             impacts[3] = impacts[3] + alpha / num_food * (reward + gamma*Qmax - Q)
         except ZeroDivisionError:
             impacts[3] = impacts[3] + alpha * (reward + gamma*Qmax - Q)
+
+        try:
+            impacts[4] = impacts[4] + alpha / dist_power * (reward + gamma*Qmax - Q)
+        except ZeroDivisionError:
+            impacts[4] = impacts[4] + alpha * (reward + gamma*Qmax - Q)
+        
+        try:
+            impacts[5] = impacts[5] + alpha / num_power * (reward + gamma*Qmax - Q)
+        except ZeroDivisionError:
+            impacts[5] = impacts[5] + alpha * (reward + gamma*Qmax - Q)
 
     prev_state = state
     prev_action = explore(state)
@@ -261,6 +272,7 @@ def valueQ(state, action):
     
     dist_food, num_food = findFood(next_state, tmp_position)
     scared_dist, active_dist = findGhost(tmp_position)
+    dist_power, num_power = find_power(next_state, tmp_position)
 
     try:
         # larger the dist, smaller the Q
@@ -278,10 +290,20 @@ def valueQ(state, action):
     else: 
         Q -= 100
     try:
-        # smaller the fodd, bigger the Q
+        # smaller the food, bigger the Q
         Q += impacts[3] / num_food
     except ZeroDivisionError:
         Q += impacts[3]
+    try:
+        # larger the dist, smaller the Q
+        Q += impacts[4] / dist_power
+    except ZeroDivisionError:
+        Q += impacts[4]
+
+    try:
+        Q += impacts[5] / num_power
+    except ZeroDivisionError:
+        Q += impacts[5]
     return Q
 
 
@@ -322,12 +344,23 @@ def findFood(state, myposition):
                 num_food += 1
                 dx = abs(myposition[0]-i)
                 dy = abs(myposition[1]-j)
-                # using tunnel for the distance
-                if dy > len(state) // 2:
-                    dy = abs(myposition[1]) + abs(len(state)-1-j) 
                 dist += dx
                 dist += dy
     return dist, num_food
+
+
+def find_power(state, myposition):
+    dist = 999
+    num_power = 0
+    for i in range(0, len(state)):
+        for j in range(0, len(state[0])):
+            if state[i][j] == 2:
+                num_power += 1
+                dx = abs(myposition[0]-i)
+                dy = abs(myposition[1]-j)
+                dist = dx + dy if dx+dy <= dist else dist
+    return dist, num_power
+
 
 def findGhost(myposition):
     global yellow_ghost
@@ -357,6 +390,7 @@ def findGhost(myposition):
             # find the closest active dist
             active_dist = min(delta, active_dist)
     return scared_dist, active_dist
+
 
 
 def explore(state):
@@ -395,7 +429,7 @@ def greedy_train(train_episode = 100):
     global epsilon  # Exploration-exploitation trade-off 
     alpha = 0.1  # Learning rate
     gamma = 0.9  # Discount factor
-    epsilon = 0.2
+    epsilon = 0.1
     # Play 100 episodes for training
     for episode in range(train_episode):
         read_weights()
@@ -466,6 +500,8 @@ testing_scores = []
 testing_iterations = []
 
 def test(test_episode = 1):
+    testing_scores = []
+    testing_iterations = []
     # Q-learning parameters
     global alpha # Learning rate
     global gamma  # Discount factor
@@ -473,6 +509,13 @@ def test(test_episode = 1):
     alpha = 0.1  # Learning rate
     gamma = 0.9  # Discount factor
     epsilon = 0
+
+    a = 0
+    b = 0
+    c = 0
+    d = 0
+    e = 0
+
     # Play 100 episodes for training
     for episode in range(test_episode):
         # generally increase epsilon
@@ -487,16 +530,26 @@ def test(test_episode = 1):
             reward = ale.act(a)
             total_reward += reward
         print("Episode %d ended with score: %d" % (episode, total_reward))
+
+        if total_reward >= 3000:
+            e +=1
+        elif total_reward >= 2000:
+            d +=1
+        elif total_reward >= 1000:
+            c +=1
+        elif total_reward >= 500:
+            b +=1
+        else:
+            a +=1
+
         training_scores.append(total_reward)
         training_iterations.append(episode)
         ale.reset_game()
-    if (test_episode>=10):
-        plt.plot(training_iterations, training_scores, marker='o')
-        plt.title('Q-learning Testing Result')
-        plt.xlabel('Number of Testing Episodes')
-        plt.ylabel('Total Testing Score')
-        plt.grid(True)
-        plt.show()
+    print('<500: ', a)
+    print('500-1000: ', b)
+    print('1000-2000: ', c)
+    print('2000-3000: ', d)
+    print('3000+: ', e)
 
 
 ''' Set up'''
@@ -508,13 +561,12 @@ ale.setInt("frame_skip", 5)
 
 if SDL_SUPPORT:
     ale.setBool("sound", False)
-    ale.setBool("display_screen", True)
+    ale.setBool("display_screen", False)
     
 ale.loadROM("./MSPACMAN.BIN")
     
 
-
 if __name__ == "__main__":
-    # greedy_train(250)
+    # greedy_train(1000)
     # decay_train(250)
-    test(1)
+    test(100)

@@ -4,13 +4,14 @@ Environment setup:
 pip install ale-py
 
 2. Install matplotlib to see the performance of the model:
-python -m pip install -U matplotlib
+pip install matplotlib
 
 3. If you planned to run it on the troitier server, please do the following steps in extra:
 	a. Navigate to the root folder of this project
 	b. python3 -m venv venv
 	c. source venv/bin/activate
 	d. Install packages indicated in 1. and 2. using "pip install"
+	REMARK: Do not turn set display to True on Troitier Server!!!
 
 To run the program:
 
@@ -19,10 +20,10 @@ python3 main.py
 By default it will test the trained model 1 time, to test other functionalities or to train the model please see below:
 
 Game Board dispaly:
-By default, the game Board would be displayed, if you want to disable it to accelerate the training or testing process, go to line 511, set ale.setBool("display_screen", True) to False.
+By default, the game Board would not be displayed, if you want to enable it to accelerate the training or testing process, go to line 564, set ale.setBool("display_screen", False) to True.
 
 Random seed:
-By default, the game would run on a random seed, if you have a specific test to train or to test, uncomment line 506 and change the number to the seed number that you want to test.
+By default, the game would run on a random seed, if you have a specific test to train or to test, uncomment line 559 and change the number to the seed number that you want to test.
 
 Navigate to the main function:
 1. If you want to see the performance of the trained model, simply run test(number_of_test), a graph will be plotted if the number_of_test >= 10; by default it will test 1 time.
